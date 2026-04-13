@@ -1,0 +1,369 @@
+openapi: 3.0.1
+info:
+  title: Ads Gateway API
+  version: 0.1.0
+servers:
+  - url: /api
+paths:
+  /accounter/user:
+    post:
+      summary: Create user
+      operationId: CreateUser
+      description: Создание пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequestBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/APIOKResponse"
+
+  /auther/tokens:
+    post:
+      summary: Create Tokens
+      operationId: CreateTokens
+      description: Получить refresh/access tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTokensRequestBody"
+      responses:
+        "200":
+          description: Tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tokens:
+                        $ref: "#/components/schemas/Tokens"
+
+  /auther/refresh-token:
+    delete:
+      summary: Delete token
+      operationId: DeleteToken
+      description: Удаление токена
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteTokenRequestBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/APIOKResponse"
+
+  /auther/acess-token:
+    get:
+      summary: Get token
+      operationId: GetToken
+      description: Получение токена доступа
+      requestBody:
+        required: true
+        content: 
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetTokenRequestBody"
+      responses:
+        "200":
+          description: Токен доступа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        $ref: "#/components/schemas/AccessToken"
+
+  /auther/user-verification:
+    post:
+      summary: Verify user 
+      operationId: VerifyUser
+      description: Верификация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserVerificationRequestBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/APIOKResponse"
+
+  /adser/cards:
+    get:
+      summary: Get advertisement
+      operationId: GetAdvertisement
+      description: Получение списка карточек объявлений
+      parameters:
+        - name: type
+          in: query
+          description: Тип подгрузки объявлений
+          required: true
+          schema:
+            type: string
+            enum:
+              - list
+              # - personalization 
+        - name: page
+          in: query
+          description: Номер страницы (обязательно для типа list)
+          schema:
+            type: integer
+        - name: per_page
+          in: query
+          description: Количество объявлений на странице (обязательно для типа list)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Получение списка карточек объявлений
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        $ref: "#/components/schemas/GetAdvertisementCardResponse"
+          
+  /adser/advertisement/{id}:
+    get:
+      summary: Get advertisement
+      operationId: GetAdvertisement
+      description: Получение информации об объявлении
+      parameters:
+        - name: id
+          in: path
+          description: Идентификатор объявления
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Получение полной информации об объявлении
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: 
+                    $ref: "#/components/schemas/Advertisement"
+
+  /adser/user-info/{id}:
+    get:
+      summary: Get user info
+      operationId: GetUserInfo
+      description: Получение информации о пользователе в сервисе объявление
+      parameters:
+        - name: id
+          in: path
+          description: Идентификатор пользователя
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Получение полной информации об объявлении
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: 
+                    $ref: "#/components/schemas/AdsUserInfo"
+
+components:
+  schemas:
+    AdsUserInfo:
+      type: object
+      properties:
+        email:
+          type: string
+        first_name:
+          type: string
+        phone:
+          type: string
+        advertisements:
+          type: array
+          items:
+            $ref: "#/components/schemas/Advertisement"
+    Advertisement:
+      description: Полная информация об объявлении
+      allOf:
+        - "$ref": "#/components/schemas/AdvertisementCard"
+        - type: object
+          properties:
+            text:
+              description: Текст объявления
+              type: string
+            user_contact_info:
+              description: Контактная информация пользователя
+              type: object
+              properties:
+                email:
+                  description: Email пользователя
+                  type: string
+                first_name:
+                  description: Имя пользователя
+                  type: string
+                phone:
+                  description: Телефон пользователя
+                  type: string
+            similars:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdvertisementCard"
+    GetAdvertisementCardResponse:
+      type: object
+      properties:
+        ads:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdvertisementCard"
+    AdvertisementCard:
+      type: object
+      required:
+        - id
+        - title
+      properties:
+        id:
+          description: Идентификатор объявления
+          type: string
+        title:
+          description: Заголовок объявления
+          type: string
+        price:
+          description: Цена
+          $ref: "#/components/schemas/Price"
+        photo_url:
+          description: URL фотографии в s3 хранилище
+          type: string
+    Price:
+      type: object
+      required:
+        - value
+        - currency
+      properties:
+        value:
+          type: number
+        currency:
+          type: string
+    DeleteTokenRequestBody:
+      type: object
+      properties:
+        refresh_token: 
+          type: string
+        except:
+          type: string
+    CreateTokensRequestBody:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email: 
+          type: string
+        password: 
+          type: string  
+    GetTokenRequestBody:
+      type: object
+      properties:
+        refresh_token: 
+          type: string
+    Tokens:
+      type: object
+      properties:
+        refresh_token:
+          $ref: "#/components/schemas/RefreshToken"
+        access_token:
+          $ref: "#/components/schemas/AccessToken"
+    RefreshToken:
+      type: object
+      required:
+        - token
+      properties:
+        token: 
+          type: string
+    AccessToken:
+      type: object
+      required:
+        - token
+      properties:
+        token: 
+          type: string
+    LoginResponseData:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+    LoginRequestBody:
+      type: object
+      properties:
+        email:
+          type: string 
+        password:
+          type: string
+    CreateUserRequest:
+      type: object
+      properties:
+        login:
+          type: string
+        first_name: 
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+    CreateUserRequestBody:
+      type: object
+      properties:
+        login:
+          type: string
+        firstName: 
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+    UserVerificationRequestBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - email # для мвп. В будущем может появиться телефон, второй email и тд...
+        code:
+          type: string
+  responses:
+    APIOKResponse:
+        description: API OKResponse
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  example: {}
+          text/plain:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  example: {}
