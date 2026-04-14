@@ -1,6 +1,8 @@
+.lab/
 .DS_Store
 .claude/
 node_modules/
+.env
 *.env
 *.env.local
 __pycache__/
