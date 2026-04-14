@@ -1,0 +1,100 @@
+@startuml
+
+left to right direction
+
+actor :Гость: as Guest
+actor :Клиент: as Client
+actor :Модератор: as Moderator
+actor :Админ: as Admin
+
+Client --|> Guest
+
+rectangle "Просмотр и поиск" {
+    (Просматривать объявления) as ViewAds
+    (Искать объявления) as SearchAds
+    (Фильтровать объявления) as FilterAds
+    (Просматривать похожие объявления) as ViewSimilar
+
+    SearchAds ..> FilterAds : <<extend>>
+    ViewAds ..> ViewSimilar : <<extend>>
+}
+
+rectangle "Аккаунт" {
+    (Зарегистрироваться) as Register
+    (Войти) as Login
+    (Выйти) as Logout
+    (Редактировать профиль) as EditProfile
+    (Редактировать контактную информацию) as EditContacts
+    (Сменить пароль) as ChangePassword
+    (Удалить аккаунт) as DeleteAccount
+
+    EditProfile ..> EditContacts : <<extend>>
+}
+
+rectangle "Объявления" {
+    (Создавать объявление) as CreateAd
+    (Редактировать своё объявление) as EditAd
+    (Закрывать своё объявление) as CloseAd
+    (Переоткрывать своё объявление) as ReopenAd
+    (Просматривать свои объявления) as ViewOwnAds
+    (Загружать фото) as UploadPhoto
+    (Откликаться на чужие объявления) as Respond
+    (Получать уведомления) as Notifications
+
+    CreateAd ..> UploadPhoto : <<include>>
+    EditAd ..> UploadPhoto : <<extend>>
+}
+
+rectangle "Модерация" {
+    (Банить объявление) as BanAd
+    (Разбанить объявление) as UnbanAd
+    (Просматривать историю банов) as ViewBanHistory
+    (Просматривать жалобы) as ViewComplaints
+}
+
+rectangle "Администрирование" {
+    (Создавать аккаунт модератора) as CreateModerator
+    (Управлять ролями пользователей) as ManageRoles
+    (Блокировать пользователей) as BlockUser
+    (Разблокировать пользователей) as UnblockUser
+    (Просматривать список пользователей) as ViewUsers
+}
+
+Guest -- ViewAds
+Guest -- SearchAds
+Guest -- Register
+Guest -- Login
+
+Client -- Logout
+Client -- EditProfile
+Client -- ChangePassword
+Client -- DeleteAccount
+Client -- CreateAd
+Client -- EditAd
+Client -- CloseAd
+Client -- ReopenAd
+Client -- ViewOwnAds
+Client -- Respond
+Client -- Notifications
+
+Moderator -- Login
+Moderator -- Logout
+Moderator -- ViewAds
+Moderator -- SearchAds
+Moderator -- BanAd
+Moderator -- UnbanAd
+Moderator -- ViewBanHistory
+Moderator -- ViewComplaints
+
+Admin -- Login
+Admin -- Logout
+Admin -- ViewAds
+Admin -- SearchAds
+Admin -- CreateModerator
+Admin -- ManageRoles
+Admin -- BlockUser
+Admin -- UnblockUser
+Admin -- ViewUsers
+Admin -- ViewBanHistory
+
+@enduml
