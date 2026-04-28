@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.dependencies import get_profile_service, get_session
+from src.dependencies import get_profile_service, get_session, require_staff
 from src.schemas.schemas import ProfileResponse, RoleResponse
 from src.services.services import ProfileService
 
@@ -12,6 +12,7 @@ router = APIRouter()
 async def list_profiles(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    _: set[str] = Depends(require_staff),
     service: ProfileService = Depends(get_profile_service),
     session: AsyncSession = Depends(get_session),
 ):

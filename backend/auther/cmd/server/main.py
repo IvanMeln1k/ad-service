@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from src.config import config
 from src.repository.postgres_repository import PostgresAuthRepository
 from src.services.auth_service import AuthenticationService
-from src.services.services import Tokens, UserAlreadyExistsError, InvalidCredentialsError, InvalidRefreshTokenError
+from src.services.services import Tokens, UserAlreadyExistsError, UserNotFoundError, InvalidCredentialsError, InvalidRefreshTokenError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -111,6 +111,26 @@ async def delete_tokens(
         return {"deleted_tokens": deleted_count}
     except Exception as e:
         logger.error(f"Delete tokens error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+
+@app.delete("/users/{user_id}", status_code=204)
+async def delete_user(
+    user_id: str,
+    session: AsyncSession = Depends(get_db)
+):
+    try:
+        await auth_service.delete_user(session, user_id)
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    except Exception as e:
+        logger.error(f"Delete user error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"

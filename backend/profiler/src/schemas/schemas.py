@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel
 
@@ -18,6 +18,10 @@ class UpdateProfileRequest(BaseModel):
 class RoleResponse(BaseModel):
     role: str
     assigned_at: Optional[datetime.datetime] = None
+
+
+class UpdateRoleRequest(BaseModel):
+    role: Literal["MODERATOR", "ADMIN"]
 
 
 class ProfileResponse(BaseModel):

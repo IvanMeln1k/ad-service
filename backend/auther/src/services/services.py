@@ -27,6 +27,10 @@ class InvalidRefreshTokenError(Exception):
     pass
 
 
+class UserNotFoundError(Exception):
+    pass
+
+
 class AuthService(ABC):
     @abstractmethod
     def create_user(self, session: AsyncSession, user_id: str, password: str) -> Tokens:
@@ -65,6 +69,11 @@ class AuthService(ABC):
         Returns:
             Number of tokens deleted
         """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def delete_user(self, session: AsyncSession, user_id: str) -> None:
+        """Delete user and all their tokens"""
         raise NotImplementedError()
 
     @abstractmethod

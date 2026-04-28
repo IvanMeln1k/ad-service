@@ -86,6 +86,12 @@ class PostgresAuthRepository(AuthRepository):
         result = await session.execute(stmt)
         return result.rowcount or 0
 
+    async def delete_user(self, session: AsyncSession, uid: str) -> bool:
+        await self.delete_refresh_tokens(session, uid)
+        stmt = delete(UserAuth).where(UserAuth.uid == uid)
+        result = await session.execute(stmt)
+        return (result.rowcount or 0) > 0
+
     async def update_user_password(
         self, session: AsyncSession, uid: str, new_password_hash: str
     ) -> None:

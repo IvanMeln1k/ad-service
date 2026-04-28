@@ -12,6 +12,7 @@ from .services import (
     Tokens,
     TokenInfo,
     UserAlreadyExistsError,
+    UserNotFoundError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
 )
@@ -186,6 +187,18 @@ class AuthenticationService(AuthService):
             )
             await session.commit()
             return result
+        except Exception:
+            await session.rollback()
+            raise
+
+    async def delete_user(self, session: AsyncSession, user_id: str) -> None:
+        try:
+            deleted = await self.repository.delete_user(session, user_id)
+            if not deleted:
+                raise UserNotFoundError(f"User {user_id} not found")
+            await session.commit()
+        except UserNotFoundError:
+            raise
         except Exception:
             await session.rollback()
             raise

@@ -1,0 +1,276 @@
+services:
+  # --- Инфраструктура ---
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: ${DB_NAME:-profiler_service}
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-profiler_service}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.7.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CLUSTER_ID: "local-dev-cluster-001"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: python:3.11-slim
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./minio-init.py:/app/init.py:ro
+    command: sh -c "pip install -q boto3 && python3 /app/init.py"
+
+  # --- Profiler ---
+
+  profiler-migrations:
+    build: ./profiler
+    command: alembic upgrade head
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-profiler_service}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  profiler:
+    build: ./profiler
+    command: uvicorn app.server.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-profiler_service}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_REGISTRATIONS: registrations
+    ports:
+      - "8001:8000"
+    depends_on:
+      profiler-migrations:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+
+  # --- Auther ---
+
+  auther-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: auth_service
+    ports:
+      - "5434:5432"
+    volumes:
+      - auther_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d auth_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auther-migrations:
+    build: ./auther
+    command: alembic upgrade head
+    environment:
+      DB_HOST: auther-db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: auth_service
+    depends_on:
+      auther-db:
+        condition: service_healthy
+
+  auther:
+    build: ./auther
+    command: uvicorn cmd.server.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DB_HOST: auther-db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: auth_service
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+    ports:
+      - "8003:8000"
+    depends_on:
+      auther-migrations:
+        condition: service_completed_successfully
+
+  # --- Registrator ---
+
+  registrator:
+    build: ./registrator
+    command: uvicorn app.server.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      AUTHER_URL: http://auther:8000
+      PROFILER_URL: http://profiler:8000
+    ports:
+      - "8004:8000"
+    depends_on:
+      auther:
+        condition: service_started
+      profiler:
+        condition: service_started
+
+  # --- Adser ---
+
+  adser-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: adser_service
+    ports:
+      - "5435:5432"
+    volumes:
+      - adser_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d adser_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adser-migrations:
+    build: ./adser
+    command: alembic upgrade head
+    environment:
+      DB_HOST: adser-db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: adser_service
+    depends_on:
+      adser-db:
+        condition: service_healthy
+
+  adser:
+    build: ./adser
+    command: uvicorn app.server.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DB_HOST: adser-db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: adser_service
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_ADS: ads
+      AUTHER_URL: http://auther:8000
+      PROFILER_URL: http://profiler:8000
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: ad-photos
+      PUBLIC_SITE_URL: http://localhost:3000
+      OPENWEATHER_API_BASE_URL: https://api.openweathermap.org
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
+      EXTERNAL_API_TIMEOUT_S: ${EXTERNAL_API_TIMEOUT_S:-2.5}
+      EXTERNAL_API_RETRIES: ${EXTERNAL_API_RETRIES:-2}
+      EXTERNAL_API_RATE_LIMIT: ${EXTERNAL_API_RATE_LIMIT:-30}
+      EXTERNAL_API_RATE_WINDOW_S: ${EXTERNAL_API_RATE_WINDOW_S:-60}
+    ports:
+      - "8005:8000"
+    depends_on:
+      adser-migrations:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  # --- Notificator ---
+
+  notificator:
+    build: ./notificator
+    command: uvicorn app.server.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - ./notificator/.env
+    ports:
+      - "8002:8000"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # --- Worker ---
+
+  profiler-unloader:
+    build: ./profiler_unloader
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_REGISTRATIONS: registrations
+      KAFKA_GROUP_ID: profiler-unloader
+      PROFILER_URL: http://profiler:8000
+      NOTIFICATOR_URL: http://notificator:8000
+      FRONTEND_URL: http://localhost:3000
+    depends_on:
+      profiler:
+        condition: service_started
+      notificator:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+  # --- Frontend ---
+
+  frontend:
+    build: ../frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      registrator:
+        condition: service_started
+      adser:
+        condition: service_started
+
+volumes:
+  db_data:
+  auther_db_data:
+  adser_db_data:
+  kafka_data:
+  minio_data:

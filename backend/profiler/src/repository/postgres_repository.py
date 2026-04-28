@@ -2,12 +2,12 @@ import datetime
 from typing import Optional
 
 from sqlalchemy import select, delete, update, and_, func
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.models import (
     Profile,
     ProfileRole,
+    Role,
     ProfileAvatar,
     UserEmail,
     EmailConfirmationToken,
@@ -139,6 +139,30 @@ class PostgresProfileRepository(ProfileRepository):
             RoleData(role=r.role.value, assigned_at=r.assigned_at)
             for r in result.scalars().all()
         ]
+
+    async def assign_role(self, session: AsyncSession, user_id: str, role: str) -> None:
+        profile = await self.get_profile(session, user_id)
+        if profile is None:
+            raise ValueError("Profile not found")
+
+        existing_stmt = select(ProfileRole).where(
+            and_(ProfileRole.user_id == user_id, ProfileRole.role == Role(role))
+        )
+        existing = (await session.execute(existing_stmt)).scalar_one_or_none()
+        if existing is not None:
+            return
+
+        role_row = ProfileRole(user_id=user_id, role=Role(role))
+        session.add(role_row)
+        await session.flush()
+
+    async def remove_role(self, session: AsyncSession, user_id: str, role: str) -> bool:
+        stmt = delete(ProfileRole).where(
+            and_(ProfileRole.user_id == user_id, ProfileRole.role == Role(role))
+        )
+        result = await session.execute(stmt)
+        await session.flush()
+        return (result.rowcount or 0) > 0
 
     async def create_email_confirmation_token(
         self, session: AsyncSession, token_data: EmailConfirmationTokenData

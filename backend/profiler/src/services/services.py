@@ -22,6 +22,10 @@ class ExpiredConfirmationTokenError(Exception):
     pass
 
 
+class InvalidRoleError(Exception):
+    pass
+
+
 class ProfileService(ABC):
     @abstractmethod
     async def create_profile(
@@ -65,6 +69,14 @@ class ProfileService(ABC):
 class RolesService(ABC):
     @abstractmethod
     async def get_roles(self, session: AsyncSession, user_id: str) -> list[RoleData]:
+        pass
+
+    @abstractmethod
+    async def assign_role(self, session: AsyncSession, user_id: str, role: str) -> list[RoleData]:
+        pass
+
+    @abstractmethod
+    async def remove_role(self, session: AsyncSession, user_id: str, role: str) -> list[RoleData]:
         pass
 
 

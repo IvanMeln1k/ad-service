@@ -10,6 +10,9 @@ class Config:
 
     EMAIL_CONFIRMATION_TTL: int = int(os.getenv("EMAIL_CONFIRMATION_TTL", "86400"))
 
+    KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    KAFKA_TOPIC_REGISTRATIONS: str = os.getenv("KAFKA_TOPIC_REGISTRATIONS", "registrations")
+
     @property
     def database_url(self) -> str:
         return (

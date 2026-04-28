@@ -67,6 +67,11 @@ class AuthRepository(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def delete_user(self, session: AsyncSession, uid: str) -> bool:
+        """Delete user and all their refresh tokens"""
+        raise NotImplementedError()
+
+    @abstractmethod
     def update_user_password(
         self, session: AsyncSession, uid: str, new_password_hash: str
     ) -> None:

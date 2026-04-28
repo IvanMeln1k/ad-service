@@ -76,6 +76,14 @@ class ProfileRepository(ABC):
         pass
 
     @abstractmethod
+    async def assign_role(self, session: AsyncSession, user_id: str, role: str) -> None:
+        pass
+
+    @abstractmethod
+    async def remove_role(self, session: AsyncSession, user_id: str, role: str) -> bool:
+        pass
+
+    @abstractmethod
     async def create_email_confirmation_token(
         self, session: AsyncSession, token_data: EmailConfirmationTokenData
     ) -> None:

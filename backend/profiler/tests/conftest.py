@@ -3,8 +3,11 @@ import datetime
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
+import jwt
 
 from src.repository.repository import ProfileData, ProfileLookupData, RoleData
+from src.events.publisher import EventPublisher
+from src.auth import AuthProvider, AuthUser
 from src.services.services import (
     ProfileService,
     RolesService,
@@ -20,9 +23,24 @@ from src.routers import (
     update_profile,
     delete_profile,
     get_roles,
+    manage_roles,
     email_confirmation_token,
     confirm_email,
 )
+
+
+class FakeEventPublisher(EventPublisher):
+    def __init__(self):
+        self.events: list[dict] = []
+
+    async def publish(self, topic, key, value):
+        self.events.append({"topic": topic, "key": key, "value": value})
+
+    async def start(self):
+        pass
+
+    async def stop(self):
+        pass
 
 
 class FakeProfileService(ProfileService):
@@ -79,6 +97,27 @@ class FakeRolesService(RolesService):
             for r in self.roles.get(user_id, [])
         ]
 
+    async def assign_role(self, session, user_id, role):
+        if user_id not in self.roles:
+            self.roles[user_id] = []
+        if role not in self.roles[user_id]:
+            self.roles[user_id].append(role)
+        return await self.get_roles(session, user_id)
+
+    async def remove_role(self, session, user_id, role):
+        if user_id in self.roles and role in self.roles[user_id]:
+            self.roles[user_id].remove(role)
+        return await self.get_roles(session, user_id)
+
+
+class FakeAuthProvider(AuthProvider):
+    def __init__(self):
+        self.default_user_id = "user-1"
+
+    async def authenticate(self, token: str) -> AuthUser:
+        payload = jwt.decode(token, options={"verify_signature": False})
+        return AuthUser(user_id=payload.get("user_id", self.default_user_id))
+
 
 class FakeEmailConfirmationService(EmailConfirmationService):
     def __init__(self, profile_service: FakeProfileService):
@@ -115,11 +154,17 @@ def fake_email_service(fake_service):
 
 
 @pytest.fixture
-def app(fake_service, fake_roles_service, fake_email_service):
+def fake_auth():
+    return FakeAuthProvider()
+
+
+@pytest.fixture
+def app(fake_service, fake_roles_service, fake_email_service, fake_auth):
     test_app = FastAPI()
     test_app.state.profile_service = fake_service
     test_app.state.roles_service = fake_roles_service
     test_app.state.email_service = fake_email_service
+    test_app.state.auth_provider = fake_auth
     test_app.state.session_factory = FakeSessionFactory()
 
     # Static paths first, then parameterized
@@ -131,6 +176,7 @@ def app(fake_service, fake_roles_service, fake_email_service):
     test_app.include_router(update_profile.router)
     test_app.include_router(delete_profile.router)
     test_app.include_router(get_roles.router)
+    test_app.include_router(manage_roles.router)
     test_app.include_router(email_confirmation_token.router)
 
     return test_app
@@ -157,3 +203,8 @@ async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+def make_auth_headers(user_id: str) -> dict[str, str]:
+    token = jwt.encode({"user_id": user_id}, key="test-secret", algorithm="HS256")
+    return {"Authorization": f"Bearer {token}"}

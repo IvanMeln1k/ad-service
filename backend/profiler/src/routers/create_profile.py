@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import get_profile_service, get_session
 from src.schemas.schemas import CreateProfileRequest
-from src.services.services import ProfileService
+from src.services.services import ProfileService, EmailAlreadyConfirmedError
 
 router = APIRouter()
 
@@ -17,5 +17,7 @@ async def create_profile(
     try:
         await service.create_profile(session, request.user_id, request.name, request.email)
         return {"user_id": request.user_id}
+    except EmailAlreadyConfirmedError:
+        raise HTTPException(status_code=409, detail="Email already taken")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
